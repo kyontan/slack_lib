@@ -12,53 +12,28 @@ func ConvertDisplayChannelName(api *slack.Client, ev *slack.MessageEvent) (fromT
 	// Channel prefix : C
 	// Group prefix : G
 	// Direct message prefix : D
-	for _, c := range ev.Channel {
-		if string(c) == "C" {
-			fromType = "channel"
-			info, err := api.GetChannelInfo(ev.Channel)
-
-			if err != nil {
-				return "", "", err
-			}
-
-			name = info.Name
-
-			return fromType, name, nil
-		} else if string(c) == "G" {
-			fromType = "group"
-			info, err := api.GetGroupInfo(ev.Channel)
-
-			if err != nil {
-				return "", "", err
-			}
-
-			name = info.Name
-
-			return fromType, name, nil
-		} else if string(c) == "D" {
-			if ev.Msg.SubType != "" {
-				// SubType is not define user
-			} else {
-				fromType = "DM"
-				info, err := api.GetUserInfo(ev.Msg.User)
-
-				if err != nil {
-					return "", "", err
-				}
-
-				name = info.Name
-
-				return fromType, name, nil
-			}
-		} else {
-			fromType = ""
-			name = ""
-		}
-
-		break
+	channel, err := api.GetConversationInfo(ev.Channel, false)
+	if err != nil {
+		return "", "", err
 	}
 
-	return "", "", errors.New("channel not found")
+	name = channel.Name
+	if channel.IsChannel && !channel.IsPrivate {
+		fromType = "channel"
+	} else if channel.IsPrivate {
+		fromType = "group"
+	} else if channel.IsIM {
+		fromType = "DM"
+		user, err := api.GetUserInfo(ev.Msg.User)
+		if err != nil {
+			return fromType, "", nil // NOTE: not error
+		}
+		name = user.Profile.DisplayName
+	} else {
+		fromType = "unknown"
+	}
+
+	return fromType, name, nil
 }
 
 func ConvertDisplayUserName(api *slack.Client, ev *slack.MessageEvent, id string) (username, usertype string, err error) {
